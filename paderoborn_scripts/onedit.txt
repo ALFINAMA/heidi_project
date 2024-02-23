@@ -1,6 +1,7 @@
-function onEdit(e) {
+function onEdit1(e) {
   insertValues();
 }
+
 function insertValues() {
   var url = 'jdbc:mysql://sql6.freesqldatabase.com:3306/sql6685320';
   var user = 'sql6685320';
@@ -8,15 +9,14 @@ function insertValues() {
   var conn = Jdbc.getConnection(url, user, password);
 
   if (conn) {
-    // Delete all rows from the paderborn table
-    var deleteStmt = conn.prepareStatement('DELETE FROM paderborn');
-    deleteStmt.executeUpdate();
-    deleteStmt.close();
+    // Delete all rows from the lippstadt table
+    deletedata(conn);
+    console.log("deleted");
 
-    // Insert new rows into the paderborn table
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var dataRange = sheet.getDataRange();
     var values = dataRange.getValues();
+    console.log(sheet, dataRange);
 
     var stmt = conn.prepareStatement('INSERT INTO paderborn (web_scraper_order, web_scraper_start_url, link, link_href, Name, price, area, rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
@@ -24,32 +24,45 @@ function insertValues() {
       var area = values[i][6];
       var rate = values[i][7];
       var price = values[i][5];
-       var name = values[i][4];//.replace(/[+!*]/g, '');
+      var name = values[i][4];
 
-      
-    if(area === ''){area=0;};if(price === ''){price=0;};if(rate === ''){rate=0;}
-     
-          area = parseFloat(area.toString().replace(/,/g, '.'));
-         rate = rate.toString().replace('.', '');
-         console.log(area,rate,price);
-         var num1 =countDecimalPlaces(area);
-         console.log(num1)
-         if (price === 0 && area !== 0 && rate !== 0) {
+      if (area === '') { area = 0; }
+      if (price === '') { price = 0; }
+      if (rate === '') { rate = 0; }
+
+      area = parseFloat(area.toString().replace(/,/g, '.'));
+      rate = rate.toString().replace('.', '');
+      console.log(area, rate, price);
+      var num1 = countDecimalPlaces(area);
+      console.log(num1);
+      if (price === 0 && area !== 0 && rate !== 0) {
         price = area * rate;
         price = roundToDecimalPlaces(price, num1);
-        price = price.toString().replace('.', ',');}
-         if (price !== 0 && area !== 0 && rate === 0) {
+        price = price.toString().replace('.', ',');
+      }
+      if (price !== 0 && area !== 0 && rate === 0) {
         rate = price * area;
-       }
-       if (price !== 0 && area === 0 && rate !== 0) {
+      }
+      if (price !== 0 && area === 0 && rate !== 0) {
         area = price * rate;
-       }
+      }
+
+      console.log(area, rate, price);
+      //price = price.toString().replace('.', ',');
+
+      // Check for duplicate web_scraper_order
+      var duplicateCount = checkDuplicate(conn, values[i][0]);
+      if (duplicateCount > 1) {
+        console.log('Duplicate found for web_scraper_order:', values[i][0]);
+        continue; // Skip this row and move to the next one
+      }
 
       stmt.setString(1, values[i][0]); // web_scraper_order
       stmt.setString(2, values[i][1]); // web_scraper_start_url
       stmt.setString(3, values[i][2]); // link
       stmt.setString(4, values[i][3]); // link_href
       stmt.setString(5, name); // Name
+      console.log(area, rate, price);
       stmt.setObject(6, price); // Use setObject to handle null values
       stmt.setObject(7, area); // Use setObject to handle null values
       stmt.setObject(8, rate); // Use setObject to handle null values
@@ -60,7 +73,7 @@ function insertValues() {
     stmt.executeBatch();
     stmt.close();
 
-    // Update flag table to set paderborn_flag to 1
+    // Update flag table to set lippstadt_flag to 1
     var updateStmt = conn.prepareStatement('UPDATE flag SET paderborn_flag = 1');
     updateStmt.executeUpdate();
     updateStmt.close();
@@ -71,13 +84,31 @@ function insertValues() {
     Logger.log('Failed to connect to the database');
   }
 }
-function countDecimalPlaces(number) {
-    const numStr = number.toString();
-    const decimalIndex = numStr.indexOf('.');
-    return decimalIndex === -1 ? 0 : numStr.length - decimalIndex - 1;
+
+function deletedata(conn) {
+  var deleteStmt = conn.prepareStatement('DELETE FROM paderborn');
+  deleteStmt.executeUpdate();
+  deleteStmt.close();
 }
+
+function checkDuplicate(conn, web_scraper_order) {
+  var stmt = conn.prepareStatement('SELECT COUNT(*) AS count FROM paderborn WHERE web_scraper_order = ?');
+  stmt.setString(1, web_scraper_order);
+  var resultSet = stmt.executeQuery();
+  resultSet.next();
+  var count = resultSet.getInt('count');
+  resultSet.close();
+  stmt.close();
+  return count;
+}
+
+function countDecimalPlaces(number) {
+  const numStr = number.toString();
+  const decimalIndex = numStr.indexOf('.');
+  return decimalIndex === -1 ? 0 : numStr.length - decimalIndex - 1;
+}
+
 function roundToDecimalPlaces(number, decimalPlaces) {
   const factor = Math.pow(10, decimalPlaces);
   return Math.round(number * factor) / factor;
 }
-
