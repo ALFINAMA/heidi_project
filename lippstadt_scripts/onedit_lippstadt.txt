@@ -18,7 +18,7 @@ function insertValues() {
     var values = dataRange.getValues();
     console.log(sheet, dataRange);
 
-    var stmt = conn.prepareStatement('INSERT INTO lippstadt (web_scraper_order, web_scraper_start_url, link, link_href, Name, price, area, rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    var stmt = conn.prepareStatement('INSERT INTO lippstadt (web_scraper_order, web_scraper_start_url, link, link_href, Name, price, area, rate,type) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)');
 
     for (var i = 1; i < values.length; i++) {
       var area = values[i][6];
@@ -30,21 +30,27 @@ function insertValues() {
       if (price === '') { price = 0; }
       if (rate === '') { rate = 0; }
 
-      area = parseFloat(area.toString().replace(/,/g, '.'));
-      rate = rate.toString().replace('.', '');
-      console.log(area, rate, price);
-      var num1 = countDecimalPlaces(area);
-      console.log(num1);
+      // area = parseFloat(area.toString().replace(/,/g, '.'));
+      // rate = rate.toString().replace('.', '');
+      // console.log(area, rate, price);
+      // var num1 = countDecimalPlaces(area);
+      // console.log(num1);
       if (price === 0 && area !== 0 && rate !== 0) {
         price = area * rate;
-        price = roundToDecimalPlaces(price, num1);
-        price = price.toString().replace('.', ',');
+        price = price.toFixed(2);
+        price = price.toString().replace('.', ',')
+        // price = roundToDecimalPlaces(price, num1);
+        // price = price.toString().replace('.', ',');
       }
       if (price !== 0 && area !== 0 && rate === 0) {
-        rate = price * area;
+        rate = price / area;
+        rate = rate.toFixed(2);
+        rate = rate.toString().replace('.', ',')
       }
       if (price !== 0 && area === 0 && rate !== 0) {
-        area = price * rate;
+        area = price / rate;
+         area = area.toFixed(2);
+        area = area.toString().replace('.', ',')
       }
 
       console.log(area, rate, price);
@@ -66,7 +72,7 @@ function insertValues() {
       stmt.setObject(6, price); // Use setObject to handle null values
       stmt.setObject(7, area); // Use setObject to handle null values
       stmt.setObject(8, rate); // Use setObject to handle null values
-
+      stmt.setString(9, values[i][8]); 
       stmt.addBatch();
     }
 

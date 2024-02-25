@@ -9,120 +9,200 @@ const cron = require('node-cron');
 
 cron.schedule('* * * * *',()=>{
     console.log("executed")
+    
     let paderborn_flag;
     pool.query('SELECT paderborn_flag FROM flag', (err, result) => {
         if (err) {
-            console.error('Error executing query: ' + err.stack);
-           // result.status(500).json({ error: 'Internal Server Error' });
-            return;
+            console.error('Error executing query: ' + err.stack); return;
         }
         paderborn_flag = result[0].paderborn_flag;
         console.log(paderborn_flag)
         if(paderborn_flag==1){
-    let paderborn_stdRate;
-    pool.query('SELECT paderborn_std_rate FROM paderborn_std_rate', (err, result) => {
-        if (err) {
-            console.error('Error executing query: ' + err.stack);
-           // result.status(500).json({ error: 'Internal Server Error' });
-            return;
-        }
-        paderborn_stdRate = result[0].paderborn_std_rate; // Assuming std_rate is a single value
-        
-        pool.query('SELECT * FROM sql6685320.paderborn WHERE rate < ?  OR rate IS NULL', [paderborn_stdRate], (err, rows) => {
-            if (err) {
-                console.error('Error executing query: ' + err.stack);
-                //res.status(500).json({ error: 'Internal Server Error' });
-                return;
-            }
-            if (rows.length > 0) {
-                sendEmail(rows,'Paderborn');
-            }
-            
-            //res.json(rws);
-            console.log(rows);
-            console.log(process.env.EMAIL_USER);
-        });
-    });
-    pool.query('UPDATE flag SET paderborn_flag = 0 WHERE id=1');
-}
-});
-
-let bielefeld_flag;
-pool.query('SELECT bielefeld_flag FROM flag', (err, result) => {
-    if (err) {
-        console.error('Error executing query: ' + err.stack);
-       // result.status(500).json({ error: 'Internal Server Error' });
-        return;
-    }
-    bielefeld_flag = result[0].bielefeld_flag;
-    console.log(bielefeld_flag)
-    if(bielefeld_flag==1){
-let bielfeld_stdRate;
-pool.query('SELECT bielfeld_std_rate FROM bielfeld_std_rate', (err, result) => {
-    if (err) {
-        console.error('Error executing query: ' + err.stack);
-       // result.status(500).json({ error: 'Internal Server Error' });
-        return;
-    }
-    bielfeld_stdRate = result[0].bielfeld_std_rate; // Assuming std_rate is a single value
+            let paderborn_stdRate_hauspreise;
+            let paderborn_stdRate_wohnungspreise;
     
-    pool.query('SELECT * FROM sql6685320.bielfeld WHERE rate < ?  OR rate IS NULL', [bielfeld_stdRate], (err, rows) => {
-        if (err) {
-            console.error('Error executing query: ' + err.stack);
-            //res.status(500).json({ error: 'Internal Server Error' });
-            return;
-        }
-        if (rows.length > 0) {
-            sendEmail(rows,'Bielfeld');
-        }
-        
-        //res.json(rws);
-        console.log(rows);
-        console.log(process.env.EMAIL_USER);
-    });
-});
-pool.query('UPDATE flag SET bielefeld_flag = 0 WHERE id=1');
-}
-});
-
-
-let lippstadt_flag;
-pool.query('SELECT lippstadt_flag FROM flag', (err, result) => {
-    if (err) {
-        console.error('Error executing query: ' + err.stack);
-       // result.status(500).json({ error: 'Internal Server Error' });
-        return;
-    }
-    lippstadt_flag = result[0].lippstadt_flag;
-    console.log(lippstadt_flag)
-    if(lippstadt_flag==1){
-let lippstadt_stdRate;
-pool.query('SELECT lippstadt_std_rate FROM lippstadt_std_rate', (err, result) => {
-    if (err) {
-        console.error('Error executing query: ' + err.stack);
-       // result.status(500).json({ error: 'Internal Server Error' });
-        return;
-    }
-    lippstadt_stdRate = result[0].lippstadt_std_rate; // Assuming std_rate is a single value
+            // Query to get paderborn_stdRate_hauspreise
+            pool.query('SELECT paderborn_std_rate FROM paderborn_std_rate WHERE name="Hauspreise";', (err, result) => {
+                if (err) {
+                    console.error('Error executing query: ' + err.stack);
+                    return;
+                }
+                paderborn_stdRate_hauspreise = result[0].paderborn_std_rate;
     
-    pool.query('SELECT * FROM sql6685320.lippstadt WHERE rate < ?  OR rate IS NULL', [lippstadt_stdRate], (err, rows) => {
-        if (err) {
-            console.error('Error executing query: ' + err.stack);
-            //res.status(500).json({ error: 'Internal Server Error' });
-            return;
+                // Query to get paderborn_stdRate_wohnungspreise
+                pool.query('SELECT paderborn_std_rate FROM paderborn_std_rate WHERE name="Wohnungspreise";', (err, result) => {
+                    if (err) {
+                        console.error('Error executing query: ' + err.stack);
+                        return;
+                    }
+                    paderborn_stdRate_wohnungspreise = result[0].paderborn_std_rate;
+    
+                    // Use both results to query paderborn table
+                    pool.query('SELECT * FROM sql6685320.paderborn WHERE (rate < ? OR rate IS NULL) AND type LIKE "Häuser zum Kauf%";',
+                        [paderborn_stdRate_hauspreise], (err, hausRows) => {
+                            if (err) {
+                                console.error('Error executing query for Häuser zum Kauf: ' + err.stack);
+                                return;
+                            }
+    
+                            // Query for Eigentumswohnungen regardless of hausRows length
+                            pool.query('SELECT * FROM sql6685320.paderborn WHERE (rate < ? OR rate IS NULL) AND type LIKE "Eigentumswohnungen%";',
+                                [paderborn_stdRate_wohnungspreise], (err, wohnungsRows) => {
+                                    if (err) {
+                                        console.error('Error executing query for Eigentumswohnungen: ' + err.stack);
+                                        return;
+                                    }
+    
+                                    // Combine results and send email if at least one row exists
+                                    const combinedRows = [...hausRows, ...wohnungsRows];
+                                    if (combinedRows.length > 0) {
+                                        sendEmail(combinedRows, 'Paderborn');
+                                    }
+                                });
+                        });
+    
+                    // Update flag after all queries are complete
+                    pool.query('UPDATE flag SET paderborn_flag = 0 WHERE id=1', (err, result) => {
+                        if (err) {
+                            console.error('Error updating flag: ' + err.stack);
+                            return;
+                        }
+                        console.log('Flag updated p');
+                    });
+                });
+            });
         }
-        if (rows.length > 0) {
-            sendEmail(rows,'Lippstadt');
-        }
-        
-        //res.json(rws);
-        console.log(rows);
-        console.log(process.env.EMAIL_USER);
     });
-});
-pool.query('UPDATE flag SET lippstadt_flag = 0 WHERE id=1');
-}
-});
+    
+
+    let bielefeld_flag;
+    pool.query('SELECT bielefeld_flag FROM flag', (err, result) => {
+        if (err) {
+            console.error('Error executing query: ' + err.stack); return;
+        }
+        bielefeld_flag = result[0].bielefeld_flag;
+        //console.log(paderborn_flag)
+        if(bielefeld_flag==1){
+            let bielefeld_stdRate_hauspreise;
+            let bielefeld_stdRate_wohnungspreise;
+    
+            // Query to get paderborn_stdRate_hauspreise
+            pool.query('SELECT bielefeld_std_rate FROM bielefeld_std_rate WHERE name="Hauspreise";', (err, result) => {
+                if (err) {
+                    console.error('Error executing query: ' + err.stack);
+                    return;
+                }
+                bielefeld_stdRate_hauspreise = result[0].bielefeld_std_rate;
+    
+                // Query to get paderborn_stdRate_wohnungspreise
+                pool.query('SELECT bielefeld_std_rate FROM bielefeld_std_rate WHERE name="Wohnungspreise";', (err, result) => {
+                    if (err) {
+                        console.error('Error executing query: ' + err.stack);
+                        return;
+                    }
+                    bielefeld_stdRate_wohnungspreise = result[0].bielefeld_std_rate;
+    
+                    // Use both results to query paderborn table
+                    pool.query('SELECT * FROM sql6685320.bielefeld WHERE (rate < ? OR rate IS NULL) AND type LIKE "Häuser zum Kauf%";',
+                        [bielefeld_stdRate_hauspreise], (err, hausRows) => {
+                            if (err) {
+                                console.error('Error executing query for Häuser zum Kauf: ' + err.stack);
+                                return;
+                            }
+    
+                            // Query for Eigentumswohnungen regardless of hausRows length
+                            pool.query('SELECT * FROM sql6685320.bielefeld WHERE (rate < ? OR rate IS NULL) AND type LIKE "Eigentumswohnungen%";',
+                                [bielefeld_stdRate_wohnungspreise], (err, wohnungsRows) => {
+                                    if (err) {
+                                        console.error('Error executing query for Eigentumswohnungen: ' + err.stack);
+                                        return;
+                                    }
+    
+                                    // Combine results and send email if at least one row exists
+                                    const combinedRows = [...hausRows, ...wohnungsRows];
+                                    if (combinedRows.length > 0) {
+                                        sendEmail(combinedRows, 'Bielefeld');
+                                    }
+                                });
+                        });
+    
+                    // Update flag after all queries are complete
+                    pool.query('UPDATE flag SET bielefeld_flag = 0 WHERE id=1', (err, result) => {
+                        if (err) {
+                            console.error('Error updating flag: ' + err.stack);
+                            return;
+                        }
+                        console.log('Flag updated b');
+                    });
+                });
+            });
+        }
+    });
+
+    let lippstadt_flag;
+    pool.query('SELECT lippstadt_flag FROM flag', (err, result) => {
+        if (err) {
+            console.error('Error executing query: ' + err.stack); return;
+        }
+        lippstadt_flag = result[0].lippstadt_flag;
+        //console.log(paderborn_flag)
+        if(lippstadt_flag==1){
+            let lippstadt_stdRate_hauspreise;
+            let lippstadt_stdRate_wohnungspreise;
+    
+            // Query to get paderborn_stdRate_hauspreise
+            pool.query('SELECT lippstadt_std_rate FROM lippstadt_std_rate WHERE name="Hauspreise";', (err, result) => {
+                if (err) {
+                    console.error('Error executing query: ' + err.stack);
+                    return;
+                }
+                lippstadt_stdRate_hauspreise = result[0].lippstadt_std_rate;
+    
+                // Query to get paderborn_stdRate_wohnungspreise
+                pool.query('SELECT lippstadt_std_rate FROM lippstadt_std_rate WHERE name="Wohnungspreise";', (err, result) => {
+                    if (err) {
+                        console.error('Error executing query: ' + err.stack);
+                        return;
+                    }
+                    lippstadt_stdRate_wohnungspreise = result[0].lippstadt_std_rate;
+    
+                    // Use both results to query paderborn table
+                    pool.query('SELECT * FROM sql6685320.lippstadt WHERE (rate < ? OR rate IS NULL) AND type LIKE "Häuser zum Kauf%";',
+                        [lippstadt_stdRate_hauspreise], (err, hausRows) => {
+                            if (err) {
+                                console.error('Error executing query for Häuser zum Kauf: ' + err.stack);
+                                return;
+                            }
+    
+                            // Query for Eigentumswohnungen regardless of hausRows length
+                            pool.query('SELECT * FROM sql6685320.lippstadt WHERE (rate < ? OR rate IS NULL) AND type LIKE "Eigentumswohnungen%";',
+                                [lippstadt_stdRate_wohnungspreise], (err, wohnungsRows) => {
+                                    if (err) {
+                                        console.error('Error executing query for Eigentumswohnungen: ' + err.stack);
+                                        return;
+                                    }
+    
+                                    // Combine results and send email if at least one row exists
+                                    const combinedRows = [...hausRows, ...wohnungsRows];
+                                    if (combinedRows.length > 0) {
+                                        sendEmail(combinedRows, 'Lippstadt');
+                                    }
+                                });
+                        });
+    
+                    // Update flag after all queries are complete
+                    pool.query('UPDATE flag SET lippstadt_flag = 0 WHERE id=1', (err, result) => {
+                        if (err) {
+                            console.error('Error updating flag: ' + err.stack);
+                            return;
+                        }
+                        console.log('Flag updated l');
+                    });
+                });
+            });
+        }
+    });
+
 })
 
 
@@ -182,7 +262,7 @@ function sendEmail(data,location) {
         let mail = MailGenerator.generate(response)
         let message = {
             from: process.env.EMAIL_USER,
-            to: ['alfina23ama@gmail.com','denio@heidi-app.de'],
+            to:'alfina23ama@gmail.com',// ['alfina23ama@gmail.com','denio@heidi-app.de'],
             subject: "Rental Properties",
             html: mail
         }
