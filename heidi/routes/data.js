@@ -9,6 +9,7 @@ const cron = require('node-cron');
 
 cron.schedule('* * * * *',()=>{
     console.log("executed")
+    res.send('Cron job started successfully');
     
     let paderborn_flag;
     pool.query('SELECT paderborn_flag FROM flag', (err, result) => {
@@ -81,12 +82,12 @@ cron.schedule('* * * * *',()=>{
             console.error('Error executing query: ' + err.stack); return;
         }
         bielefeld_flag = result[0].bielefeld_flag;
-      
+        //console.log(paderborn_flag)
         if(bielefeld_flag==1){
             let bielefeld_stdRate_hauspreise;
             let bielefeld_stdRate_wohnungspreise;
     
-            // Query to get bielefeld_stdRate_hauspreise
+            // Query to get paderborn_stdRate_hauspreise
             pool.query('SELECT bielefeld_std_rate FROM bielefeld_std_rate WHERE name="Hauspreise";', (err, result) => {
                 if (err) {
                     console.error('Error executing query: ' + err.stack);
@@ -94,7 +95,7 @@ cron.schedule('* * * * *',()=>{
                 }
                 bielefeld_stdRate_hauspreise = result[0].bielefeld_std_rate;
     
-                // Query to get bielefeld_stdRate_wohnungspreise
+                // Query to get paderborn_stdRate_wohnungspreise
                 pool.query('SELECT bielefeld_std_rate FROM bielefeld_std_rate WHERE name="Wohnungspreise";', (err, result) => {
                     if (err) {
                         console.error('Error executing query: ' + err.stack);
@@ -102,7 +103,7 @@ cron.schedule('* * * * *',()=>{
                     }
                     bielefeld_stdRate_wohnungspreise = result[0].bielefeld_std_rate;
     
-                    // Use both results to query bielefeld table
+                    // Use both results to query paderborn table
                     pool.query('SELECT * FROM sql6685320.bielefeld WHERE (rate < ? OR rate IS NULL) AND type LIKE "Häuser zum Kauf%";',
                         [bielefeld_stdRate_hauspreise], (err, hausRows) => {
                             if (err) {
@@ -133,6 +134,7 @@ cron.schedule('* * * * *',()=>{
                             return;
                         }
                         console.log('Flag updated b');
+                        
                     });
                 });
             });
@@ -145,12 +147,12 @@ cron.schedule('* * * * *',()=>{
             console.error('Error executing query: ' + err.stack); return;
         }
         lippstadt_flag = result[0].lippstadt_flag;
-     
+        //console.log(paderborn_flag)
         if(lippstadt_flag==1){
             let lippstadt_stdRate_hauspreise;
             let lippstadt_stdRate_wohnungspreise;
     
-            // Query to get lippstadt_stdRate_hauspreise
+            // Query to get paderborn_stdRate_hauspreise
             pool.query('SELECT lippstadt_std_rate FROM lippstadt_std_rate WHERE name="Hauspreise";', (err, result) => {
                 if (err) {
                     console.error('Error executing query: ' + err.stack);
@@ -158,7 +160,7 @@ cron.schedule('* * * * *',()=>{
                 }
                 lippstadt_stdRate_hauspreise = result[0].lippstadt_std_rate;
     
-                // Query to get lippstadt_stdRate_wohnungspreise
+                // Query to get paderborn_stdRate_wohnungspreise
                 pool.query('SELECT lippstadt_std_rate FROM lippstadt_std_rate WHERE name="Wohnungspreise";', (err, result) => {
                     if (err) {
                         console.error('Error executing query: ' + err.stack);
@@ -166,7 +168,7 @@ cron.schedule('* * * * *',()=>{
                     }
                     lippstadt_stdRate_wohnungspreise = result[0].lippstadt_std_rate;
     
-                    // Use both results to query lippstadt table
+                    // Use both results to query paderborn table
                     pool.query('SELECT * FROM sql6685320.lippstadt WHERE (rate < ? OR rate IS NULL) AND type LIKE "Häuser zum Kauf%";',
                         [lippstadt_stdRate_hauspreise], (err, hausRows) => {
                             if (err) {
@@ -247,12 +249,22 @@ function sendEmail(data,location) {
                 outro: "Looking forward to do more business"
             }
         }
-       
+        response.body.table.columns = {
+            // Assuming you want to add the Euro symbol to the 'Final Price' column
+            Final_price: {
+                align: 'right',
+                width: 'auto',
+                color: '#000000',
+                fontSize: '15px',
+                bold: true,
+                text: 'Final Price (in euros) €'
+            }
+        };
 
         let mail = MailGenerator.generate(response)
         let message = {
             from: process.env.EMAIL_USER,
-            to:['alfina@heidi-app.com','denio@heidi-app.de'],
+            to:'alfina23ama@gmail.com',// ['alfina23ama@gmail.com','denio@heidi-app.de'],
             subject: "Rental Properties",
             html: mail
         }
