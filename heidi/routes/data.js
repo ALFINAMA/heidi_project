@@ -1,5 +1,5 @@
-//const express = require('express');
-//const router = express.Router();
+const express = require('express');
+const router = express.Router();
 const pool = require('../config/db');
 const nodemailer = require('nodemailer');
 const Mailgen = require('mailgen');
@@ -277,5 +277,7 @@ function sendEmail(data,location) {
     });
 }
 
-
-module.exports = cron;
+router.get('/', (req, res) => {
+    res.send('Server is running');
+});
+module.exports = router;
