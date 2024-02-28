@@ -9,7 +9,7 @@ const cron = require('node-cron');
 
 cron.schedule('* * * * *',()=>{
     console.log("executed")
-    res.send('Cron job started successfully');
+    
     
     let paderborn_flag;
     pool.query('SELECT paderborn_flag FROM flag', (err, result) => {
@@ -277,7 +277,9 @@ function sendEmail(data,location) {
     });
 }
 
+
+//module.exports = cron;
 router.get('/', (req, res) => {
-    res.send('Server is running');
+    res.send('Server is running now');
 });
 module.exports = router;
